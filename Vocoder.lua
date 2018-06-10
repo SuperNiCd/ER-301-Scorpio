@@ -89,10 +89,10 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     local omix4 = self:createObject("Sum","omix4")
 
     -- create a saw osc (just for testing for now)
-    local saw = self:createObject("SawtoothOscillator","saw")
-    local sawf0 = self:createObject("Constant","sawf0")
-    sawf0:hardSet("Value",440.0)
-    connect(sawf0,"Out",saw,"Fundamental")
+    -- local saw = self:createObject("SawtoothOscillator","saw")
+    -- local sawf0 = self:createObject("Constant","sawf0")
+    -- sawf0:hardSet("Value",440.0)
+    -- connect(sawf0,"Out",saw,"Fundamental")
 
     -- set f0 for all bpfs
     -- bp1f0:hardSet("Bias",400.0)
@@ -160,10 +160,10 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     connect(ef4,"Out",ogain4,"Left")
 
     -- connect saw oscillator to the input of the output BPFs
-    connect(saw,"Out",lpO1,"Left In")
-    connect(saw,"Out",lpO2,"Left In")
-    connect(saw,"Out",lpO3,"Left In")
-    connect(saw,"Out",lpO4,"Left In")
+    connect(gain,"Out",lpO1,"Left In")
+    connect(gain,"Out",lpO2,"Left In")
+    connect(gain,"Out",lpO3,"Left In")
+    connect(gain,"Out",lpO4,"Left In")
 
     -- tie attack and release
     tie(ef1,"Attack Time",attack,"Out")
