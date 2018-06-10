@@ -24,6 +24,12 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     gain:setClampInDecibels(-59.9)
     gain:hardSet("Gain",1.0)
 
+
+    local inputHPF = self:createObject("StereoFixedHPF","inputHPF")
+    local inputHPFf0 = self:createObject("GainBias","inputHPFf0")
+    local inputHPFRange = self:createObject("MinMax","inputHPFRange")
+    connect(inputHPFf0,"Out",inputHPFRange,"In")
+
     -- create input lpfs
     local lpI1 = self:createObject("StereoLadderFilter","lpI1")
     local lpI2 = self:createObject("StereoLadderFilter","lpI2")
@@ -54,25 +60,21 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     local ef3 = self:createObject("EnvelopeFollower", "ef3")
     local ef4 = self:createObject("EnvelopeFollower", "ef4")
 
-    -- create Constants for input filter frequencies
-    local lpI1f0 = self:createObject("Constant","lpI1f0")
-    local lpI2f0 = self:createObject("Constant","lpI2f0")
-    local lpI3f0 = self:createObject("Constant","lpI3f0")
-    local lpI4f0 = self:createObject("Constant","lpI4f0")
-    local hpI1f0 = self:createObject("Constant","hpI1f0")
-    local hpI2f0 = self:createObject("Constant","hpI2f0")
-    local hpI3f0 = self:createObject("Constant","hpI3f0")
-    local hpI4f0 = self:createObject("Constant","hpI4f0")
+    -- create envelope follower controls
+    local attack = self:createObject("ParameterAdapter","attack")
+    local release = self:createObject("ParameterAdapter","release")
 
-    -- create Constants for output filter frequencies
-    local lpO1f0 = self:createObject("Constant","lpO1f0")
-    local lpO2f0 = self:createObject("Constant","lpO2f0")
-    local lpO3f0 = self:createObject("Constant","lpO3f0")
-    local lpO4f0 = self:createObject("Constant","lpO4f0")
-    local hpO1f0 = self:createObject("Constant","hpO1f0")
-    local hpO2f0 = self:createObject("Constant","hpO2f0")
-    local hpO3f0 = self:createObject("Constant","hpO3f0")
-    local hpO4f0 = self:createObject("Constant","hpO4f0")  
+    -- create constant offsets for bpf fundamentals
+    local bp1f0 = self:createObject("GainBias","bp1f0")
+    local bp2f0 = self:createObject("GainBias","bp2f0")
+    local bp3f0 = self:createObject("GainBias","bp3f0")
+    local bp4f0 = self:createObject("GainBias","bp4f0")
+
+    -- create frequency ranges for BPF f0s
+    local bp1f0Range = self:createObject("MinMax","bp1f0Range")
+    local bp2f0Range = self:createObject("MinMax","bp2f0Range")
+    local bp3f0Range = self:createObject("MinMax","bp3f0Range")
+    local bp4f0Range = self:createObject("MinMax","bp4f0Range")
 
     -- create output vcas
     local ogain1 = self:createObject("Multiply","ogain1")
@@ -92,45 +94,37 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     sawf0:hardSet("Value",440.0)
     connect(sawf0,"Out",saw,"Fundamental")
 
-    -- set f0 for all input bpfs
-    lpI1f0:hardSet("Value",400.0)
-    hpI1f0:hardSet("Value",400.0)
-    lpI2f0:hardSet("Value",1200.0)
-    hpI2f0:hardSet("Value",1200.0)
-    lpI3f0:hardSet("Value",3000.0)
-    hpI3f0:hardSet("Value",3000.0)
-    lpI4f0:hardSet("Value",6000.0)
-    hpI4f0:hardSet("Value",6000.0)  
-
-    -- set f0 for all output bpfs
-    lpO1f0:hardSet("Value",400.0)
-    hpO1f0:hardSet("Value",400.0)
-    lpO2f0:hardSet("Value",1200.0)
-    hpO2f0:hardSet("Value",1200.0)
-    lpO3f0:hardSet("Value",3000.0)
-    hpO3f0:hardSet("Value",3000.0)
-    lpO4f0:hardSet("Value",6000.0)
-    hpO4f0:hardSet("Value",6000.0)     
+    -- set f0 for all bpfs
+    -- bp1f0:hardSet("Bias",400.0)
+    -- bp2f0:hardSet("Bias",1200.0)
+    -- bp3f0:hardSet("Bias",3000.0)
+    -- bp4f0:hardSet("Bias",6000.0)
     
     -- connect frequency constants to the input filter DSP fundamentals
-    connect(lpI1f0,"Out",lpI1,"Fundamental")
-    connect(lpI2f0,"Out",lpI2,"Fundamental")
-    connect(lpI3f0,"Out",lpI3,"Fundamental")
-    connect(lpI4f0,"Out",lpI4,"Fundamental")
-    connect(hpI1f0,"Out",hpI1,"Fundamental")
-    connect(hpI2f0,"Out",hpI2,"Fundamental")
-    connect(hpI3f0,"Out",hpI3,"Fundamental")
-    connect(hpI4f0,"Out",hpI4,"Fundamental")
+    connect(bp1f0,"Out",lpI1,"Fundamental")
+    connect(bp2f0,"Out",lpI2,"Fundamental")
+    connect(bp3f0,"Out",lpI3,"Fundamental")
+    connect(bp4f0,"Out",lpI4,"Fundamental")
+    connect(bp1f0,"Out",hpI1,"Fundamental")
+    connect(bp2f0,"Out",hpI2,"Fundamental")
+    connect(bp3f0,"Out",hpI3,"Fundamental")
+    connect(bp4f0,"Out",hpI4,"Fundamental")
 
     -- connect frequency constants to the output filter DSP fundamentals
-    connect(lpO1f0,"Out",lpO1,"Fundamental")
-    connect(lpO2f0,"Out",lpO2,"Fundamental")
-    connect(lpO3f0,"Out",lpO3,"Fundamental")
-    connect(lpO4f0,"Out",lpO4,"Fundamental")
-    connect(hpO1f0,"Out",hpO1,"Fundamental")
-    connect(hpO2f0,"Out",hpO2,"Fundamental")
-    connect(hpO3f0,"Out",hpO3,"Fundamental")
-    connect(hpO4f0,"Out",hpO4,"Fundamental")    
+    connect(bp1f0,"Out",lpO1,"Fundamental")
+    connect(bp2f0,"Out",lpO2,"Fundamental")
+    connect(bp3f0,"Out",lpO3,"Fundamental")
+    connect(bp4f0,"Out",lpO4,"Fundamental")
+    connect(bp1f0,"Out",hpO1,"Fundamental")
+    connect(bp2f0,"Out",hpO2,"Fundamental")
+    connect(bp3f0,"Out",hpO3,"Fundamental")
+    connect(bp4f0,"Out",hpO4,"Fundamental")   
+    
+    -- connect frequency ranges to f0 sliders
+    connect(bp1f0,"Out",bp1f0Range,"In")
+    connect(bp2f0,"Out",bp2f0Range,"In")
+    connect(bp3f0,"Out",bp3f0Range,"In")
+    connect(bp4f0,"Out",bp4f0Range,"In")
 
     -- connect input filter pairs in series
     connect(lpI1,"Left Out",hpI1,"Left In")
@@ -144,11 +138,14 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     connect(lpO3,"Left Out",hpO3,"Left In")
     connect(lpO4,"Left Out",hpO4,"Left In")    
 
-    -- connect modulator (unit input) to BPFs in parallel
-    connect(pUnit,"In1",lpI1,"Left In")
-    connect(pUnit,"In1",lpI2,"Left In")
-    connect(pUnit,"In1",lpI3,"Left In")
-    connect(pUnit,"In1",lpI4,"Left In")
+    -- connect modulator (unit input) to fixed HPF
+    connect(pUnit,"In1",inputHPF,"Left In")
+
+    -- connect input HPF to BPFs in parallel
+    connect(inputHPF,"Left Out",lpI1,"Left In")
+    connect(inputHPF,"Left Out",lpI2,"Left In")
+    connect(inputHPF,"Left Out",lpI3,"Left In")
+    connect(inputHPF,"Left Out",lpI4,"Left In")
 
     -- connect input BPFs to envelope followers
     connect(hpI1,"Left Out",ef1,"In")
@@ -167,6 +164,18 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     connect(saw,"Out",lpO2,"Left In")
     connect(saw,"Out",lpO3,"Left In")
     connect(saw,"Out",lpO4,"Left In")
+
+    -- tie attack and release
+    tie(ef1,"Attack Time",attack,"Out")
+    tie(ef2,"Attack Time",attack,"Out")
+    tie(ef3,"Attack Time",attack,"Out")
+    tie(ef4,"Attack Time",attack,"Out")
+    self:addBranch("attack","Attack",attack,"In")
+    tie(ef1,"Release Time",release,"Out")
+    tie(ef2,"Release Time",release,"Out")
+    tie(ef3,"Release Time",release,"Out")
+    tie(ef4,"Release Time",release,"Out")
+    self:addBranch("release","Release",release,"In")
 
     -- connect output of output BPFs to right side of output mixers
     connect(hpO1,"Left Out",ogain1,"Right")
@@ -187,13 +196,18 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     
     -- register exported ports
     self:addBranch("input","Input", gain, "In")
+    self:addBranch("inputHPFf0","inHPF", inputHPFf0,"In")
+    self:addBranch("bp1f0","f1",bp1f0,"In")
+    self:addBranch("bp2f0","f2",bp2f0,"In")
+    self:addBranch("bp3f0","f3",bp3f0,"In")
+    self:addBranch("bp4f0","f4",bp4f0,"In")
 
 end
 
 
 function Vocoder:onLoadViews(objects,controls)
   local views = {
-    expanded = {"gain"},
+    expanded = {"gain", "inHPF", "f1", "f2", "f3", "f4","attack","release"},
     collapsed = {},
   }
 
@@ -201,6 +215,93 @@ function Vocoder:onLoadViews(objects,controls)
     button = "carrier",
     branch = self:getBranch("Input"),
     faderParam = objects.gain:getParameter("Gain")
+  }
+
+  controls.inHPF = GainBias {
+    button = "inHPF",
+    branch = self:getBranch("inHPF"),
+    description = "inHPF",
+    gainbias = objects.inputHPFf0,
+    range = objects.inputHPFRange,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 440,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
+
+  controls.f1 = GainBias {
+    button = "f1",
+    branch = self:getBranch("f1"),
+    description = "f1",
+    gainbias = objects.bp1f0,
+    range = objects.bp1f0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 440,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
+
+  controls.f2 = GainBias {
+    button = "f2",
+    branch = self:getBranch("f2"),
+    description = "f2",
+    gainbias = objects.bp2f0,
+    range = objects.bp2f0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 1200,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
+
+  controls.f3 = GainBias {
+    button = "f3",
+    branch = self:getBranch("f3"),
+    description = "f3",
+    gainbias = objects.bp3f0,
+    range = objects.bp3f0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 3000,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }  
+  
+  controls.f4 = GainBias {
+    button = "f4",
+    branch = self:getBranch("f4"),
+    description = "f4",
+    gainbias = objects.bp4f0,
+    range = objects.bp4f0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 6000,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
+
+  controls.attack = GainBias {
+    button = "attack",
+    description = "Attack Time",
+    branch = self:getBranch("Attack"),
+    gainbias = objects.attack,
+    range = objects.attack,
+    biasMap = Encoder.getMap("unit"),
+    biasUnits = app.unitSecs,
+    initialBias = 0.001
+  }
+
+  controls.release = GainBias {
+    button = "release",
+    description = "Release Time",
+    branch = self:getBranch("Release"),
+    gainbias = objects.release,
+    range = objects.release,
+    biasMap = Encoder.getMap("unit"),
+    biasUnits = app.unitSecs,
+    initialBias = 0.010
   }
 
   --self:addToMuteGroup(controls.gain)
