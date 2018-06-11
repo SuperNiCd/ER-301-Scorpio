@@ -206,19 +206,23 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
 
 end
 
-local controlMode = "easy"
+local controlMode = "no"
+
+function Vocoder:changeControlMode(mode)
+  controlMode = mode
+  if controlMode=="no" then
+    self:switchView("expanded")
+  else
+      self:switchView("extended")
+  end
+end
 
 function Vocoder:onLoadViews(objects,controls)
     local views = {
-    expanded = {"gain", "inHPF", "f1", "f2", "f3", "f4","attack","release"},
-    collapsed = {},
-  }
-  if controlMode=="pro" then 
-   views = {
     expanded = {"gain", "inHPF"},
     collapsed = {},
+    extended = {"gain", "inHPF", "f1", "f2", "f3", "f4","attack","release"}
   }
-  end
   
 
   controls.gain = BranchMeter {
@@ -322,8 +326,8 @@ end
 
 local menu = {
   "setHeader",
-  "setEasy",
-  "setPro",
+  "setControlsNo",
+  "setControlsYes",
 }
 
 
@@ -331,17 +335,17 @@ local menu = {
 function Vocoder:onLoadMenu(objects,controls)
 
   controls.setHeader = MenuHeader {
-    description = string.format("Controls mode is: %s.",controlMode)
+    description = string.format("Display fundamental controls: %s.",controlMode)
   }
 
-  controls.setEasy = Task {
-    description = "easy",
-    task = function() controlMode="easy" end
+  controls.setControlsNo = Task {
+    description = "no",
+    task = function() self:changeControlMode("no") end
   }
 
-  controls.setPro = Task {
-    description = "pro",
-    task = function() controlMode="pro" end
+  controls.setControlsYes = Task {
+    description = "yes",
+    task = function() self:changeControlMode("yes") end
   }
 
   return menu
