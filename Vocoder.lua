@@ -4,6 +4,8 @@ local Class = require "Base.Class"
 local Unit = require "Unit"
 local BranchMeter = require "Unit.ViewControl.BranchMeter"
 local GainBias = require "Unit.ViewControl.GainBias"
+local Task = require "Unit.MenuControl.Task"
+local MenuHeader = require "Unit.MenuControl.Header"
 local Encoder = require "Encoder"
 local ply = app.SECTION_PLY
 
@@ -204,12 +206,20 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
 
 end
 
+local controlMode = "easy"
 
 function Vocoder:onLoadViews(objects,controls)
-  local views = {
+    local views = {
     expanded = {"gain", "inHPF", "f1", "f2", "f3", "f4","attack","release"},
     collapsed = {},
   }
+  if controlMode=="pro" then 
+   views = {
+    expanded = {"gain", "inHPF"},
+    collapsed = {},
+  }
+  end
+  
 
   controls.gain = BranchMeter {
     button = "carrier",
@@ -308,6 +318,33 @@ function Vocoder:onLoadViews(objects,controls)
 
 
   return views
+end
+
+local menu = {
+  "setHeader",
+  "setEasy",
+  "setPro",
+}
+
+
+
+function Vocoder:onLoadMenu(objects,controls)
+
+  controls.setHeader = MenuHeader {
+    description = string.format("Controls mode is: %s.",controlMode)
+  }
+
+  controls.setEasy = Task {
+    description = "easy",
+    task = function() controlMode="easy" end
+  }
+
+  controls.setPro = Task {
+    description = "pro",
+    task = function() controlMode="pro" end
+  }
+
+  return menu
 end
 
 -- function Vocoder:serialize()
