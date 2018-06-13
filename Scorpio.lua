@@ -9,16 +9,31 @@ local MenuHeader = require "Unit.MenuControl.Header"
 local Encoder = require "Encoder"
 local ply = app.SECTION_PLY
 
-local Vocoder = Class{}
-Vocoder:include(Unit)
+local Scorpio = Class{}
+Scorpio:include(Unit)
 
-function Vocoder:init(args)
-  args.title = "Vocoder"
-  args.mnemonic = "Vc"
+function Scorpio:init(args)
+  args.title = "Scorpio"
+  args.mnemonic = "SC"
   Unit.init(self,args)
 end
 
-function Vocoder:onLoadGraph(pUnit,channelCount)
+--[[ 
+     To change the number of bands, change numBands to the desired number of bands.  Note that each band
+     requires ~6% CPU usage.  You will need to supply a default frequency for each band in the table freqInitialBias.
+     If an initial frequency is not supplied it will default to 0Hz, which will block the band. 
+  ]]
+
+-- local numBands = 12
+-- local freqInitialBias = {200,500,800,1200,1500,1800,2600,3900,5500,7800,12800,15000}
+
+local numBands = 10
+local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
+
+
+
+
+function Scorpio:onLoadGraph(pUnit,channelCount)
 
     -- create the carrier subchain and level control
     local sum = self:createObject("Sum","sum")
@@ -60,14 +75,14 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     }
 
     for k, v in pairs(objectList) do
-      for i = 1, 10 do
+      for i = 1, numBands do
         dynamicVar = k .. i
         dynamicDSPUnit = v[1]
         localVars[dynamicVar] = self:createObject(dynamicDSPUnit,dynamicVar)
       end
     end
 
-    for i = 1,10 do
+    for i = 1,numBands do
       -- connect frequency constants to the input filter DSP fundamentals
       connect(localVars["bpf0" .. i],"Out",localVars["lpI" .. i],"Fundamental")
       connect(localVars["bpf0" .. i],"Out",localVars["hpI" .. i],"Fundamental")
@@ -152,18 +167,18 @@ function Vocoder:onLoadGraph(pUnit,channelCount)
     self:addBranch("release","Release",release,"In")
     self:addBranch("outputLevel","OutputLevel",outputLevel,"In")
 
-    for i = 1,10 do
+    for i = 1,numBands do
       self:addBranch("bpf0" .. i,"f" .. i,localVars["bpf0" .. i],"In")
     end
 
-    for i = 1,10 do
+    for i = 1,numBands do
       self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"In")
     end
 end
 
 local controlMode = "no"
 
-function Vocoder:changeControlMode(mode)
+function Scorpio:changeControlMode(mode)
   controlMode = mode
   if controlMode=="no" then
     self:switchView("expanded")
@@ -172,11 +187,25 @@ function Vocoder:changeControlMode(mode)
   end
 end
 
-function Vocoder:onLoadViews(objects,controls)
+function Scorpio:onLoadViews(objects,controls)
+
+    -- add level and frequency buttons based on numBands
+    local bandButtons = {}
+    for i=1,numBands do
+      table.insert(bandButtons, "f" .. i)
+      table.insert(bandButtons, "lvl" .. i)
+    end
+
+    local ext = {"gain", "preHPF", "outputLevel","attack","release"}
+
+    for i=1,#bandButtons do
+      ext[#ext+1] = bandButtons[i]
+    end
+
     local views = {
-    expanded = {"gain", "preHPF", "outputLevel"},
+    expanded = {"gain", "preHPF", "outputLevel","attack","release"},
     collapsed = {},
-    extended = {"gain", "preHPF", "outputLevel", "f1", "lvl1", "f2", "lvl2", "f3", "lvl3", "f4", "lvl4", "f5", "lvl5", "f6", "lvl6", "f7", "lvl7", "f8", "lvl8", "f9", "lvl9", "f10", "lvl10", "attack","release"}
+    extended = ext
   }
   
 
@@ -209,8 +238,8 @@ function Vocoder:onLoadViews(objects,controls)
     biasMap = Encoder.getMap("[0,10]"),
   }
 
-  local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
-  for i=1,10 do
+  --local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
+  for i=1,numBands do
     controls["f" .. i] = GainBias {
       button = "f" .. i,
       branch = self:getBranch("f" .. i),
@@ -225,7 +254,7 @@ function Vocoder:onLoadViews(objects,controls)
     }
   end
 
-  for i=1,10 do
+  for i=1,numBands do
     controls["lvl" .. i] = GainBias {
       button = "lvl" .. i,
       branch = self:getBranch("lvl" .. i),
@@ -274,7 +303,7 @@ local menu = {
 
 
 
-function Vocoder:onLoadMenu(objects,controls)
+function Scorpio:onLoadMenu(objects,controls)
 
   controls.setHeader = MenuHeader {
     description = string.format("Display frequency controls: %s.",controlMode)
@@ -293,14 +322,14 @@ function Vocoder:onLoadMenu(objects,controls)
   return menu
 end
 
-function Vocoder:serialize()
+function Scorpio:serialize()
   local t = Unit.serialize(self)
   t.mute = self.controls.gain:isMuted()
   t.solo = self.controls.gain:isSolo()
   return t
 end
 
-function Vocoder:deserialize(t)
+function Scorpio:deserialize(t)
   Unit.deserialize(self,t)
   if t.mute then
     self.controls.gain:mute()
@@ -310,4 +339,4 @@ function Vocoder:deserialize(t)
   end
 end
 
-return Vocoder
+return Scorpio
