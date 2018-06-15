@@ -29,6 +29,7 @@ end
 
 local numBands = 10
 local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
+-- local freqInitialBias = {250, 1700, 3150, 4600, 6050, 7500, 8950, 10400, 13300}
 
 
 
@@ -71,8 +72,8 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       bpf0 = { "GainBias" },
       bpf0Range = { "MinMax" },
       ogain = { "Multiply" },
-      omix = { "Sum" }
-    }
+      omix = { "Sum" },
+     }
 
     for k, v in pairs(objectList) do
       for i = 1, numBands do
@@ -172,8 +173,9 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     end
 
     for i = 1,numBands do
-      self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"In")
+      self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"efgainLvl")
     end
+
 end
 
 local controlMode = "no"
@@ -227,6 +229,7 @@ function Scorpio:onLoadViews(objects,controls)
     gainMap = Encoder.getMap("freqGain"),
     scaling = app.octaveScaling
   }
+
 
   controls.outputLevel = GainBias {
     button = "postgain",
