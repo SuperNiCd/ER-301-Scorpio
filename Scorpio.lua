@@ -28,7 +28,7 @@ end
 -- local freqInitialBias = {200,500,800,1200,1500,1800,2600,3900,5500,7800,12800,15000}
 
 local numBands = 10
-local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
+local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,6500,7500}
 -- local freqInitialBias = {250, 1700, 3150, 4600, 6050, 7500, 8950, 10400, 13300}
 
 
@@ -45,8 +45,9 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     -- create a fixed HPF for the modulator
     local inputHPF = self:createObject("StereoFixedHPF","inputHPF")
     local inputHPFf0 = self:createObject("GainBias","inputHPFf0")
-    local inputHPFRange = self:createObject("MinMax","inputHPFRange")
-    connect(inputHPFf0,"Out",inputHPFRange,"In")
+    -- local inputHPFRange = self:createObject("MinMax","inputHPFRange")
+    -- connect(inputHPFf0,"Out",inputHPFRange,"In")
+    inputHPFf0:hardSet("Bias",20.0)
 
     -- create an output (make up) gain and control
     local outputGain = self:createObject("Multiply","outputGain")
@@ -54,8 +55,9 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     local outputLevelRange = self:createObject("MinMax","outputLevelRange")
 
     -- create envelope follower controls
-    local attack = self:createObject("ParameterAdapter","attack")
-    local release = self:createObject("ParameterAdapter","release")
+    -- local attack = self:createObject("ParameterAdapter","attack")
+    -- local release = self:createObject("ParameterAdapter","release")
+    local envelope = self:createObject("ParameterAdapter", "envelope")
 
     -- Create the objects that require one per band
     local localVars = {}
@@ -66,11 +68,13 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       lpO = { "StereoLadderFilter" },
       hpO = { "StereoLadderHPF" },
       ef  = { "EnvelopeFollower" },
-      efgain = { "Multiply" },
-      efgainLvl = { "GainBias" },
-      efgainLvlRange = { "MinMax" },
+      -- efgain = { "Multiply" },
+      -- efgainLvl = { "GainBias" },
+      -- efgainLvlRange = { "MinMax" },
       bpf0 = { "GainBias" },
       bpf0Range = { "MinMax" },
+      fShiftSumLP = { "Sum" },
+      fShiftSumHP  =  { "Sum" },
       ogain = { "Multiply" },
       omix = { "Sum" },
      }
@@ -83,14 +87,30 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       end
     end
 
+    local fShiftf0 = self:createObject("GainBias","fShiftf0")
+    local fShiftf0Range = self:createObject("MinMax","fShiftf0Range")
+    connect(fShiftf0,"Out",fShiftf0Range,"In")
+
     for i = 1,numBands do
       -- connect frequency constants to the input filter DSP fundamentals
       connect(localVars["bpf0" .. i],"Out",localVars["lpI" .. i],"Fundamental")
       connect(localVars["bpf0" .. i],"Out",localVars["hpI" .. i],"Fundamental")
 
       -- connect frequency constants to the output filter DSP fundamentals
-      connect(localVars["bpf0" .. i],"Out",localVars["lpO" .. i],"Fundamental")
-      connect(localVars["bpf0" .. i],"Out",localVars["hpO" .. i],"Fundamental")
+      -- connect(localVars["bpf0" .. i],"Out",localVars["lpO" .. i],"Fundamental")
+      -- connect(localVars["bpf0" .. i],"Out",localVars["hpO" .. i],"Fundamental")
+
+      -- connect frequency constants to the fshift summers
+      connect(localVars["bpf0" .. i],"Out",localVars["fShiftSumLP" .. i],"Left")
+      connect(localVars["bpf0" .. i],"Out",localVars["fShiftSumHP" .. i],"Left")
+
+      -- connect fshift to right side of frequency shift summer
+      connect(fShiftf0,"Out",localVars["fShiftSumLP" .. i],"Right")
+      connect(fShiftf0,"Out",localVars["fShiftSumHP" .. i],"Right")
+
+      -- connect fshift control to output filter inputs
+      connect(localVars["fShiftSumLP" .. i],"Out",localVars["lpO" .. i],"Fundamental")
+      connect(localVars["fShiftSumHP" .. i],"Out",localVars["hpO" .. i],"Fundamental")
 
       -- connect frequency ranges to f0 slider
       connect(localVars["bpf0" .. i],"Out",localVars["bpf0Range" .. i],"In")
@@ -101,30 +121,30 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       -- connect output filter pairs in series
       connect(localVars["lpO" .. i],"Left Out",localVars["hpO" .. i],"Left In")
 
-      -- connect input HPF to BPFs in parallel
+      -- connect input to input BPFs in parallel
       connect(inputHPF,"Left Out",localVars["lpI" .. i],"Left In")
 
       -- connect input BPFs to envelope followers
       connect(localVars["hpI" .. i],"Left Out",localVars["ef" .. i],"In")
 
       -- connect the envelope follower outputs to individual VCAs
-      connect(localVars["ef" .. i],"Out",localVars["efgain" .. i],"Left")
+      -- connect(localVars["ef" .. i],"Out",localVars["efgain" .. i],"Left")
 
       -- connect the EF VCAs to level controls
-      connect(localVars["efgainLvl" .. i],"Out",localVars["efgain" .. i],"Right")
+      -- connect(localVars["efgainLvl" .. i],"Out",localVars["efgain" .. i],"Right")
 
       -- connect the EF level ranges to the EF gain controls
-      connect(localVars["efgainLvl" .. i],"Out",localVars["efgainLvlRange" .. i],"In")
+      -- connect(localVars["efgainLvl" .. i],"Out",localVars["efgainLvlRange" .. i],"In")
 
       -- connect output of envelope followers gains to left side of output VCAs
-      connect(localVars["efgain" .. i],"Out",localVars["ogain" .. i],"Left")
+      connect(localVars["ef" .. i],"Out",localVars["ogain" .. i],"Left")
 
       -- connect carrier to the input of the output BPFs
       connect(gain,"Out",localVars["lpO" .. i],"Left In")
 
       -- tie attack and release
-      tie(localVars["ef" .. i],"Attack Time",attack,"Out")
-      tie(localVars["ef" .. i],"Release Time",release,"Out")
+      tie(localVars["ef" .. i],"Attack Time",envelope,"Out")
+      tie(localVars["ef" .. i],"Release Time",envelope,"Out")
 
       -- connect output of output BPFs to right side of output mixers
       connect(localVars["hpO" .. i],"Left Out",localVars["ogain" .. i],"Right")
@@ -163,18 +183,20 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     
     -- register exported ports
     self:addBranch("input","Input", gain, "In")
-    self:addBranch("inputHPFf0","preHPF", inputHPFf0,"In")
-    self:addBranch("attack","Attack",attack,"In")
-    self:addBranch("release","Release",release,"In")
+    -- self:addBranch("inputHPFf0","preHPF", inputHPFf0,"In")
+    -- self:addBranch("attack","Attack",attack,"In")
+    -- self:addBranch("release","Release",release,"In")
+    self:addBranch("envelope","Envelope",envelope,"In")
     self:addBranch("outputLevel","OutputLevel",outputLevel,"In")
+    self:addBranch("fshift","Fshift",fShiftf0,"In")
 
     for i = 1,numBands do
       self:addBranch("bpf0" .. i,"f" .. i,localVars["bpf0" .. i],"In")
     end
 
-    for i = 1,numBands do
-      self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"efgainLvl")
-    end
+    -- for i = 1,numBands do
+    --   self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"efgainLvl")
+    -- end
 
 end
 
@@ -195,21 +217,33 @@ function Scorpio:onLoadViews(objects,controls)
     local bandButtons = {}
     for i=1,numBands do
       table.insert(bandButtons, "f" .. i)
-      table.insert(bandButtons, "lvl" .. i)
+      -- table.insert(bandButtons, "lvl" .. i)
     end
 
-    local ext = {"gain", "preHPF", "outputLevel","attack","release"}
+    local ext = {"gain","envelope","fshift","outputLevel"}
 
     for i=1,#bandButtons do
       ext[#ext+1] = bandButtons[i]
     end
 
     local views = {
-    expanded = {"gain", "preHPF", "outputLevel","attack","release"},
+    expanded = {"gain","envelope","fshift","outputLevel"},
     collapsed = {},
     extended = ext
   }
   
+  controls.fshift = GainBias {
+    button = "fshift",
+    branch = self:getBranch("Fshift"),
+    description = "spectrum shift",
+    gainbias = objects.fShiftf0,
+    range = objects.fShiftf0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 0,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
 
   controls.gain = BranchMeter {
     button = "carrier",
@@ -217,18 +251,18 @@ function Scorpio:onLoadViews(objects,controls)
     faderParam = objects.gain:getParameter("Gain")
   }
 
-  controls.preHPF = GainBias {
-    button = "preHPF",
-    branch = self:getBranch("preHPF"),
-    description = "preHPF",
-    gainbias = objects.inputHPFf0,
-    range = objects.inputHPFRange,
-    biasMap = Encoder.getMap("filterFreq"),
-    biasUnits = app.unitHertz,
-    initialBias = 100,
-    gainMap = Encoder.getMap("freqGain"),
-    scaling = app.octaveScaling
-  }
+  -- controls.preHPF = GainBias {
+  --   button = "preHPF",
+  --   branch = self:getBranch("preHPF"),
+  --   description = "preHPF",
+  --   gainbias = objects.inputHPFf0,
+  --   range = objects.inputHPFRange,
+  --   biasMap = Encoder.getMap("filterFreq"),
+  --   biasUnits = app.unitHertz,
+  --   initialBias = 100,
+  --   gainMap = Encoder.getMap("freqGain"),
+  --   scaling = app.octaveScaling
+  -- }
 
 
   controls.outputLevel = GainBias {
@@ -241,7 +275,6 @@ function Scorpio:onLoadViews(objects,controls)
     biasMap = Encoder.getMap("[0,10]"),
   }
 
-  --local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,7800,12800}
   for i=1,numBands do
     controls["f" .. i] = GainBias {
       button = "f" .. i,
@@ -257,40 +290,40 @@ function Scorpio:onLoadViews(objects,controls)
     }
   end
 
-  for i=1,numBands do
-    controls["lvl" .. i] = GainBias {
-      button = "lvl" .. i,
-      branch = self:getBranch("lvl" .. i),
-      description = "lvl" .. i,
-      gainbias = objects["efgainLvl" ..i],
-      range = objects["efgainLvlRange" .. i],
-      initialBias = 1.0,
-      biasMap = Encoder.getMap("[0,10]"),
-    }
-  end
+  -- for i=1,numBands do
+  --   controls["lvl" .. i] = GainBias {
+  --     button = "lvl" .. i,
+  --     branch = self:getBranch("lvl" .. i),
+  --     description = "lvl" .. i,
+  --     gainbias = objects["efgainLvl" ..i],
+  --     range = objects["efgainLvlRange" .. i],
+  --     initialBias = 1.0,
+  --     biasMap = Encoder.getMap("[0,10]"),
+  --   }
+  -- end
 
 
-  controls.attack = GainBias {
-    button = "attack",
-    description = "Attack Time",
-    branch = self:getBranch("Attack"),
-    gainbias = objects.attack,
-    range = objects.attack,
+  controls.envelope = GainBias {
+    button = "envelope",
+    description = "Env atk/dcy",
+    branch = self:getBranch("Envelope"),
+    gainbias = objects.envelope,
+    range = objects.envelope,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitSecs,
     initialBias = 0.035
   }
 
-  controls.release = GainBias {
-    button = "release",
-    description = "Release Time",
-    branch = self:getBranch("Release"),
-    gainbias = objects.release,
-    range = objects.release,
-    biasMap = Encoder.getMap("unit"),
-    biasUnits = app.unitSecs,
-    initialBias = 0.035
-  }
+  -- controls.release = GainBias {
+  --   button = "release",
+  --   description = "Release Time",
+  --   branch = self:getBranch("Release"),
+  --   gainbias = objects.release,
+  --   range = objects.release,
+  --   biasMap = Encoder.getMap("unit"),
+  --   biasUnits = app.unitSecs,
+  --   initialBias = 0.035
+  -- }
 
   --self:addToMuteGroup(controls.gain)
 
