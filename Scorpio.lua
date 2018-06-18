@@ -24,15 +24,8 @@ end
      If an initial frequency is not supplied it will default to 0Hz, which will block the band. 
   ]]
 
--- local numBands = 12
--- local freqInitialBias = {200,500,800,1200,1500,1800,2600,3900,5500,7800,12800,15000}
-
 local numBands = 10
 local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,6500,7500}
--- local freqInitialBias = {250, 1700, 3150, 4600, 6050, 7500, 8950, 10400, 13300}
-
-
-
 
 function Scorpio:onLoadGraph(pUnit,channelCount)
 
@@ -42,11 +35,9 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     gain:setClampInDecibels(-59.9)
     gain:hardSet("Gain",1.0)
 
-    -- create a fixed HPF for the modulator
+    -- create a fixed HPF for the modulator - 20 Hz DC blocker
     local inputHPF = self:createObject("StereoFixedHPF","inputHPF")
     local inputHPFf0 = self:createObject("GainBias","inputHPFf0")
-    -- local inputHPFRange = self:createObject("MinMax","inputHPFRange")
-    -- connect(inputHPFf0,"Out",inputHPFRange,"In")
     inputHPFf0:hardSet("Bias",20.0)
 
     -- create an output (make up) gain and control
@@ -54,23 +45,31 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     local outputLevel = self:createObject("GainBias","outputLevel")
     local outputLevelRange = self:createObject("MinMax","outputLevelRange")
 
-    -- create envelope follower controls
-    -- local attack = self:createObject("ParameterAdapter","attack")
-    -- local release = self:createObject("ParameterAdapter","release")
+    -- create envelope follower controls - this will adjust attack and decay for all envelope followers together
     local envelope = self:createObject("ParameterAdapter", "envelope")
 
-    -- Create the objects that require one per band
+    -- create a fixed HPF for the modulator output mix
+    local outputHPF = self:createObject("StereoLadderHPF","outputHPF")
+    local outputHPFf0 = self:createObject("GainBias","outputHPFf0")
+    local outputHPFf0Range = self:createObject("MinMax","outputHPFf0Range")
+
+    -- create a mixer for the modulator output
+    local outputModMix = self:createObject("Sum","outputModMix")
+    local outputModLevel = self:createObject("GainBias","outputModLevel")
+    local outputModGain = self:createObject("Multiply","outputModGain")
+    local outputModLevelRange = self:createObject("MinMax", "outputModLevelRange")
+
+
+    -- Create the objects that require one per band.  This is done in a nested loop for convenience and shorter code
     local localVars = {}
 
+    -- define the different objects to be mass created
     local objectList = {
       lpI = { "StereoLadderFilter" },
       hpI = { "StereoLadderHPF" },
       lpO = { "StereoLadderFilter" },
       hpO = { "StereoLadderHPF" },
       ef  = { "EnvelopeFollower" },
-      -- efgain = { "Multiply" },
-      -- efgainLvl = { "GainBias" },
-      -- efgainLvlRange = { "MinMax" },
       bpf0 = { "GainBias" },
       bpf0Range = { "MinMax" },
       fShiftSumLP = { "Sum" },
@@ -79,6 +78,7 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       omix = { "Sum" },
      }
 
+     -- create numBands # instances of each object in objectList
     for k, v in pairs(objectList) do
       for i = 1, numBands do
         dynamicVar = k .. i
@@ -87,18 +87,21 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       end
     end
 
+    -- create the fShift control.  This control shifts the fundamentals of the output BPFs away from the input BPFs to
+    -- change the timbre/character of the output sound
     local fShiftf0 = self:createObject("GainBias","fShiftf0")
     local fShiftf0Range = self:createObject("MinMax","fShiftf0Range")
     connect(fShiftf0,"Out",fShiftf0Range,"In")
 
+    -- connect modulator (unit input) to fixed HPF
+    connect(pUnit,"In1",inputHPF,"Left In")
+
+    -- This loop wires the objects that were created in mass above together
     for i = 1,numBands do
-      -- connect frequency constants to the input filter DSP fundamentals
+      -- connect frequency constants to the input filter DSP fundamentals.  These controls are shown in the Display
+      -- Frequency controls view, and adjust the center frequencies of the bandpass filters.
       connect(localVars["bpf0" .. i],"Out",localVars["lpI" .. i],"Fundamental")
       connect(localVars["bpf0" .. i],"Out",localVars["hpI" .. i],"Fundamental")
-
-      -- connect frequency constants to the output filter DSP fundamentals
-      -- connect(localVars["bpf0" .. i],"Out",localVars["lpO" .. i],"Fundamental")
-      -- connect(localVars["bpf0" .. i],"Out",localVars["hpO" .. i],"Fundamental")
 
       -- connect frequency constants to the fshift summers
       connect(localVars["bpf0" .. i],"Out",localVars["fShiftSumLP" .. i],"Left")
@@ -127,22 +130,13 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       -- connect input BPFs to envelope followers
       connect(localVars["hpI" .. i],"Left Out",localVars["ef" .. i],"In")
 
-      -- connect the envelope follower outputs to individual VCAs
-      -- connect(localVars["ef" .. i],"Out",localVars["efgain" .. i],"Left")
-
-      -- connect the EF VCAs to level controls
-      -- connect(localVars["efgainLvl" .. i],"Out",localVars["efgain" .. i],"Right")
-
-      -- connect the EF level ranges to the EF gain controls
-      -- connect(localVars["efgainLvl" .. i],"Out",localVars["efgainLvlRange" .. i],"In")
-
       -- connect output of envelope followers gains to left side of output VCAs
       connect(localVars["ef" .. i],"Out",localVars["ogain" .. i],"Left")
 
       -- connect carrier to the input of the output BPFs
       connect(gain,"Out",localVars["lpO" .. i],"Left In")
 
-      -- tie attack and release
+      -- tie envelope controls to the envelope followers
       tie(localVars["ef" .. i],"Attack Time",envelope,"Out")
       tie(localVars["ef" .. i],"Release Time",envelope,"Out")
 
@@ -150,8 +144,7 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       connect(localVars["hpO" .. i],"Left Out",localVars["ogain" .. i],"Right")
     end
 
-    -- connect modulator (unit input) to fixed HPF
-    connect(pUnit,"In1",inputHPF,"Left In")
+
 
     -- mix output output of the output VCAs
     connect(localVars["ogain1"],"Out",localVars["omix1"],"Left")
@@ -173,31 +166,46 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     connect(localVars["omix8"],"Out",localVars["omix9"],"Left")
     connect(localVars["ogain10"],"Out",localVars["omix9"],"Right")
 
-    -- connect summed signal to post gain, and gain bias to post gain
+    -- connect summed signal to post /gain, and gain bias to post gain
     connect(localVars["omix9"],"Out",outputGain,"Left")
     connect(outputLevel,"Out",outputGain,"Right")
     connect(outputLevel,"Out",outputLevelRange,"In")
 
-    -- send band passed mix to unit output
-     connect(outputGain,"Out",pUnit,"Out1")
+    -- connect modulator to output HPF
+    connect(inputHPF,"Left Out",outputHPF,"Left In")
+
+    --connect frequency control for output mod HPF
+    connect(outputHPFf0,"Out",outputHPF,"Fundamental")
+    connect(outputHPFf0,"Out",outputHPFf0Range,"In")
+
+    -- connect HPF modulator out to gain block
+    connect(outputHPF,"Left Out",outputModGain,"Left")
+    connect(outputModLevel,"Out",outputModGain,"Right")
+    connect(outputModLevel,"Out",outputModLevelRange,"In")
+
+    -- connect HPF modulator gain out to right side of final mixer
+    connect(outputModGain,"Out",outputModMix,"Right")
+
+    -- connect vocoded signal to left side of final mixer
+    connect(outputGain,"Out",outputModMix,"Left")
+
+    -- connect to unit output
+     connect(outputModMix,"Out",pUnit,"Out1")
+     if channelCount == 2 then
+      connect(outputModMix,"Out",pUnit,"Out2")
+     end
     
     -- register exported ports
     self:addBranch("input","Input", gain, "In")
-    -- self:addBranch("inputHPFf0","preHPF", inputHPFf0,"In")
-    -- self:addBranch("attack","Attack",attack,"In")
-    -- self:addBranch("release","Release",release,"In")
     self:addBranch("envelope","Envelope",envelope,"In")
     self:addBranch("outputLevel","OutputLevel",outputLevel,"In")
     self:addBranch("fshift","Fshift",fShiftf0,"In")
+    self:addBranch("hpModMix","HpModMix",outputModLevel,"In")
+    self:addBranch("hpModf0","HpModf0",inputHPFf0,"In")
 
     for i = 1,numBands do
       self:addBranch("bpf0" .. i,"f" .. i,localVars["bpf0" .. i],"In")
     end
-
-    -- for i = 1,numBands do
-    --   self:addBranch("lvl" .. i,"Lvl" .. i,localVars["efgainLvl" .. i],"efgainLvl")
-    -- end
-
 end
 
 local controlMode = "no"
@@ -213,21 +221,20 @@ end
 
 function Scorpio:onLoadViews(objects,controls)
 
-    -- add level and frequency buttons based on numBands
+    -- add frequency buttons based on numBands
     local bandButtons = {}
     for i=1,numBands do
       table.insert(bandButtons, "f" .. i)
-      -- table.insert(bandButtons, "lvl" .. i)
     end
 
-    local ext = {"gain","envelope","fshift","outputLevel"}
+    local ext = {"gain","envelope","fshift","outputLevel","hpModMix","hpModf0"}
 
     for i=1,#bandButtons do
       ext[#ext+1] = bandButtons[i]
     end
 
     local views = {
-    expanded = {"gain","envelope","fshift","outputLevel"},
+    expanded = {"gain","envelope","fshift","outputLevel","hpModMix"},
     collapsed = {},
     extended = ext
   }
@@ -245,25 +252,37 @@ function Scorpio:onLoadViews(objects,controls)
     scaling = app.octaveScaling
   }
 
+  controls.hpModf0 = GainBias {
+    button = "hpModf0",
+    branch = self:getBranch("HpModf0"),
+    description = "mod mixin hpf freq",
+    gainbias = objects.outputHPFf0,
+    range = objects.outputHPFf0Range,
+    biasMap = Encoder.getMap("filterFreq"),
+    biasUnits = app.unitHertz,
+    initialBias = 13000,
+    gainMap = Encoder.getMap("freqGain"),
+    scaling = app.octaveScaling
+  }
+
   controls.gain = BranchMeter {
     button = "carrier",
     branch = self:getBranch("Input"),
     faderParam = objects.gain:getParameter("Gain")
   }
 
-  -- controls.preHPF = GainBias {
-  --   button = "preHPF",
-  --   branch = self:getBranch("preHPF"),
-  --   description = "preHPF",
-  --   gainbias = objects.inputHPFf0,
-  --   range = objects.inputHPFRange,
-  --   biasMap = Encoder.getMap("filterFreq"),
-  --   biasUnits = app.unitHertz,
-  --   initialBias = 100,
-  --   gainMap = Encoder.getMap("freqGain"),
-  --   scaling = app.octaveScaling
-  -- }
 
+  controls.hpModMix = GainBias {
+    button = "modmix",
+    description = "mix in modulator",
+    branch = self:getBranch("HpModMix"),
+    gainbias = objects.outputModLevel,
+    range = objects.outputModLevelRange,
+    initialBias = 0.0,
+    biasMap = Encoder.getMap("volume"),
+    biasUnits = app.unitDecibels,
+    gainMap = Encoder.getMap("[-10,10]"),
+  }
 
   controls.outputLevel = GainBias {
     button = "postgain",
@@ -290,19 +309,6 @@ function Scorpio:onLoadViews(objects,controls)
     }
   end
 
-  -- for i=1,numBands do
-  --   controls["lvl" .. i] = GainBias {
-  --     button = "lvl" .. i,
-  --     branch = self:getBranch("lvl" .. i),
-  --     description = "lvl" .. i,
-  --     gainbias = objects["efgainLvl" ..i],
-  --     range = objects["efgainLvlRange" .. i],
-  --     initialBias = 1.0,
-  --     biasMap = Encoder.getMap("[0,10]"),
-  --   }
-  -- end
-
-
   controls.envelope = GainBias {
     button = "envelope",
     description = "Env atk/dcy",
@@ -314,20 +320,6 @@ function Scorpio:onLoadViews(objects,controls)
     initialBias = 0.035
   }
 
-  -- controls.release = GainBias {
-  --   button = "release",
-  --   description = "Release Time",
-  --   branch = self:getBranch("Release"),
-  --   gainbias = objects.release,
-  --   range = objects.release,
-  --   biasMap = Encoder.getMap("unit"),
-  --   biasUnits = app.unitSecs,
-  --   initialBias = 0.035
-  -- }
-
-  --self:addToMuteGroup(controls.gain)
-
-
   return views
 end
 
@@ -336,8 +328,6 @@ local menu = {
   "setControlsNo",
   "setControlsYes",
 }
-
-
 
 function Scorpio:onLoadMenu(objects,controls)
 
