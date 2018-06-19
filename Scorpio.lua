@@ -21,7 +21,7 @@ end
 --[[ 
      To change the number of bands, change numBands to the desired number of bands.  Note that each band
      requires ~6% CPU usage.  You will need to supply a default frequency for each band in the table freqInitialBias.
-     If an initial frequency is not supplied it will default to 0Hz, which will block the band. 
+     If an initial frequency is not supplied it will default to 0Hz, which will block the band.  Minimum 4 bands.
   ]]
 
 local numBands = 10
@@ -144,30 +144,18 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       connect(localVars["hpO" .. i],"Left Out",localVars["ogain" .. i],"Right")
     end
 
-
-
-    -- mix output output of the output VCAs
-    connect(localVars["ogain1"],"Out",localVars["omix1"],"Left")
-    connect(localVars["ogain2"],"Out",localVars["omix1"],"Right")
-    connect(localVars["omix1"],"Out",localVars["omix2"],"Left")
-    connect(localVars["ogain3"],"Out",localVars["omix2"],"Right")
-    connect(localVars["omix2"],"Out",localVars["omix3"],"Left")
-    connect(localVars["ogain4"],"Out",localVars["omix3"],"Right")
-    connect(localVars["omix3"],"Out",localVars["omix4"],"Left")
-    connect(localVars["ogain5"],"Out",localVars["omix4"],"Right")
-    connect(localVars["omix4"],"Out",localVars["omix5"],"Left")
-    connect(localVars["ogain6"],"Out",localVars["omix5"],"Right")
-    connect(localVars["omix5"],"Out",localVars["omix6"],"Left")
-    connect(localVars["ogain7"],"Out",localVars["omix6"],"Right")
-    connect(localVars["omix6"],"Out",localVars["omix7"],"Left")
-    connect(localVars["ogain8"],"Out",localVars["omix7"],"Right")
-    connect(localVars["omix7"],"Out",localVars["omix8"],"Left")
-    connect(localVars["ogain9"],"Out",localVars["omix8"],"Right")
-    connect(localVars["omix8"],"Out",localVars["omix9"],"Left")
-    connect(localVars["ogain10"],"Out",localVars["omix9"],"Right")
+    -- connect the output BPFs to the array of mixers
+    connect(localVars["ogain1"],"Out",localVars["omix1"],"Left") 
+    connect(localVars["ogain" .. numBands-1],"Out",localVars["omix" .. numBands],"Right")
+    for i=1,numBands-1 do
+        connect(localVars["ogain" .. i+1],"Out",localVars["omix" .. i],"Right")
+        connect(localVars["omix" .. i],"Out",localVars["omix" .. i+1],"Left")
+    end
 
     -- connect summed signal to post /gain, and gain bias to post gain
-    connect(localVars["omix9"],"Out",outputGain,"Left")
+    connect(localVars["omix" .. numBands-1],"Out",outputGain,"Left")
+
+    -- connect(localVars["omix9"],"Out",outputGain,"Left")
     connect(outputLevel,"Out",outputGain,"Right")
     connect(outputLevel,"Out",outputLevelRange,"In")
 
