@@ -25,7 +25,7 @@ end
   ]]
 
 local numBands = 10
-local freqInitialBias = {200,500,800,1200,1800,2600,3900,5500,6500,7500}
+local bw = (5000-300)/numBands
 
 function Scorpio:onLoadGraph(pUnit,channelCount)
 
@@ -291,7 +291,7 @@ function Scorpio:onLoadViews(objects,controls)
       range = objects["bpf0Range" .. i],
       biasMap = Encoder.getMap("filterFreq"),
       biasUnits = app.unitHertz,
-      initialBias = freqInitialBias[i],
+      initialBias = 300 + (i-1) * bw,
       gainMap = Encoder.getMap("freqGain"),
       scaling = app.octaveScaling
     }
