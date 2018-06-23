@@ -335,7 +335,7 @@ function Scorpio:onLoadViews(objects,controls)
     range = objects.qInRange,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitNone,
-    initialBias = 0.0,
+    initialBias = 0.2,
     gainMap = Encoder.getMap("[-10,10]")
   }
 
@@ -347,7 +347,7 @@ function Scorpio:onLoadViews(objects,controls)
     range = objects.qOutRange,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitNone,
-    initialBias = 0.0,
+    initialBias = 0.2,
     gainMap = Encoder.getMap("[-10,10]")
   }
 
@@ -382,6 +382,7 @@ function Scorpio:onLoadMenu(objects,controls)
 
   return menu
 end
+
 
 function Scorpio:serialize()
   local t = Unit.serialize(self)
