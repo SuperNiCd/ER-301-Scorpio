@@ -48,6 +48,10 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     -- create envelope follower controls - this will adjust attack and decay for all envelope followers together
     local envelope = self:createObject("ParameterAdapter", "envelope")
 
+    -- create resonance (Q) controls for input and output BPFs
+    local qIn = self:createObject("ParameterAdapter", "qIn")
+    local qOut = self:createObject("ParameterAdapter", "qOut")
+
     -- create a fixed HPF for the modulator output mix
     local outputHPF = self:createObject("StereoLadderHPF","outputHPF")
     local outputHPFf0 = self:createObject("GainBias","outputHPFf0")
@@ -81,8 +85,8 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
      -- create numBands # instances of each object in objectList
     for k, v in pairs(objectList) do
       for i = 1, numBands do
-        dynamicVar = k .. i
-        dynamicDSPUnit = v[1]
+        local dynamicVar = k .. i
+        local dynamicDSPUnit = v[1]
         localVars[dynamicVar] = self:createObject(dynamicDSPUnit,dynamicVar)
       end
     end
@@ -140,6 +144,12 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       tie(localVars["ef" .. i],"Attack Time",envelope,"Out")
       tie(localVars["ef" .. i],"Release Time",envelope,"Out")
 
+       -- connect resonance parameters to input and output bpfs
+       tie(localVars["lpI" .. i],"Resonance",qIn,"Out")
+       tie(localVars["hpI" .. i],"Resonance",qIn,"Out")
+       tie(localVars["lpO" .. i],"Resonance",qOut,"Out")
+       tie(localVars["hpO" .. i],"Resonance",qOut,"Out")
+
       -- connect output of output BPFs to right side of output mixers
       connect(localVars["hpO" .. i],"Left Out",localVars["ogain" .. i],"Right")
     end
@@ -186,6 +196,8 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     -- register exported ports
     self:addBranch("input","Input", gain, "In")
     self:addBranch("envelope","Envelope",envelope,"In")
+    self:addBranch("qIn","QIn",qIn,"In")
+    self:addBranch("qOut","QOut",qOut,"In")
     self:addBranch("outputLevel","OutputLevel",outputLevel,"In")
     self:addBranch("fshift","Fshift",fShiftf0,"In")
     self:addBranch("hpModMix","HpModMix",outputModLevel,"In")
@@ -215,7 +227,7 @@ function Scorpio:onLoadViews(objects,controls)
       table.insert(bandButtons, "f" .. i)
     end
 
-    local ext = {"gain","envelope","fshift","outputLevel","hpModMix","hpModf0"}
+    local ext = {"gain","envelope","fshift","outputLevel","hpModMix","hpModf0","qIn","qOut"}
 
     for i=1,#bandButtons do
       ext[#ext+1] = bandButtons[i]
@@ -308,6 +320,28 @@ function Scorpio:onLoadViews(objects,controls)
     initialBias = 0.035
   }
 
+  controls.qIn = GainBias {
+    button = "QIn",
+    description = "Input filter resonance",
+    branch = self:getBranch("QIn"),
+    gainbias = objects.qIn,
+    range = objects.qIn,
+    biasMap = Encoder.getMap("unit"),
+    biasUnits = app.unitNone,
+    initialBias = 0.25,
+  }
+
+  controls.qOut = GainBias {
+    button = "QOut",
+    description = "Output filter resonance",
+    branch = self:getBranch("QOut"),
+    gainbias = objects.qOut,
+    range = objects.qOut,
+    biasMap = Encoder.getMap("unit"),
+    biasUnits = app.unitNone,
+    initialBias = 0.25,
+  }
+
   return views
 end
 
@@ -315,6 +349,10 @@ local menu = {
   "setHeader",
   "setControlsNo",
   "setControlsYes",
+  "infoHeader",
+  "rename",
+  "load",
+  "save"
 }
 
 function Scorpio:onLoadMenu(objects,controls)
