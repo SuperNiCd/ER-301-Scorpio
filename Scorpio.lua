@@ -49,8 +49,10 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     local envelope = self:createObject("ParameterAdapter", "envelope")
 
     -- create resonance (Q) controls for input and output BPFs
-    local qIn = self:createObject("ParameterAdapter", "qIn")
-    local qOut = self:createObject("ParameterAdapter", "qOut")
+    local qIn = self:createObject("GainBias", "qIn")
+    local qOut = self:createObject("GainBias", "qOut")
+    local qInRange = self:createObject("MinMax", "qInRange")
+    local qOutRange = self:createObject("MinMax", "qOutRange")
 
     -- create a fixed HPF for the modulator output mix
     local outputHPF = self:createObject("StereoLadderHPF","outputHPF")
@@ -145,10 +147,11 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       tie(localVars["ef" .. i],"Release Time",envelope,"Out")
 
        -- connect resonance parameters to input and output bpfs
-       tie(localVars["lpI" .. i],"Resonance",qIn,"Out")
-       tie(localVars["hpI" .. i],"Resonance",qIn,"Out")
-       tie(localVars["lpO" .. i],"Resonance",qOut,"Out")
-       tie(localVars["hpO" .. i],"Resonance",qOut,"Out")
+       connect(qIn,"Out",localVars["lpI" .. i],"Resonance")
+       connect(qIn,"Out",localVars["hpI" .. i],"Resonance")
+       connect(qOut,"Out",localVars["hpO" .. i],"Resonance")
+       connect(qOut,"Out",localVars["lpO" .. i],"Resonance")
+
 
       -- connect output of output BPFs to right side of output mixers
       connect(localVars["hpO" .. i],"Left Out",localVars["ogain" .. i],"Right")
@@ -168,6 +171,10 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     -- connect(localVars["omix9"],"Out",outputGain,"Left")
     connect(outputLevel,"Out",outputGain,"Right")
     connect(outputLevel,"Out",outputLevelRange,"In")
+
+    -- connect Q controls to their range objects
+    connect(qIn,"Out",qInRange,"In")
+    connect(qOut,"Out",qOutRange,"In")
 
     -- connect modulator to output HPF
     connect(inputHPF,"Left Out",outputHPF,"Left In")
@@ -317,7 +324,7 @@ function Scorpio:onLoadViews(objects,controls)
     range = objects.envelope,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitSecs,
-    initialBias = 0.035
+    initialBias = 0.035,
   }
 
   controls.qIn = GainBias {
@@ -325,10 +332,11 @@ function Scorpio:onLoadViews(objects,controls)
     description = "Input filter resonance",
     branch = self:getBranch("QIn"),
     gainbias = objects.qIn,
-    range = objects.qIn,
+    range = objects.qInRange,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitNone,
-    initialBias = 0.25,
+    initialBias = 0.0,
+    gainMap = Encoder.getMap("[-10,10]")
   }
 
   controls.qOut = GainBias {
@@ -336,10 +344,11 @@ function Scorpio:onLoadViews(objects,controls)
     description = "Output filter resonance",
     branch = self:getBranch("QOut"),
     gainbias = objects.qOut,
-    range = objects.qOut,
+    range = objects.qOutRange,
     biasMap = Encoder.getMap("unit"),
     biasUnits = app.unitNone,
-    initialBias = 0.25,
+    initialBias = 0.0,
+    gainMap = Encoder.getMap("[-10,10]")
   }
 
   return views
