@@ -7,6 +7,7 @@ local GainBias = require "Unit.ViewControl.GainBias"
 local Task = require "Unit.MenuControl.Task"
 local MenuHeader = require "Unit.MenuControl.Header"
 local Encoder = require "Encoder"
+local PitchControl = require "Unit.ViewControl.PitchControl"
 local ply = app.SECTION_PLY
 
 local Scorpio = Class{}
@@ -65,6 +66,12 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     local outputModGain = self:createObject("Multiply","outputModGain")
     local outputModLevelRange = self:createObject("MinMax", "outputModLevelRange")
 
+    -- create the fshift tune control
+    local fshifttune = self:createObject("ConstantOffset","tune")
+    local fshifttuneRange = self:createObject("MinMax","tuneRange")
+    connect(fshifttune,"Out",fshifttuneRange,"In")
+    
+
 
     -- Create the objects that require one per band.  This is done in a nested loop for convenience and shorter code
     local localVars = {}
@@ -78,8 +85,6 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       ef  = { "EnvelopeFollower" },
       bpf0 = { "GainBias" },
       bpf0Range = { "MinMax" },
-      fShiftSumLP = { "Sum" },
-      fShiftSumHP  =  { "Sum" },
       ogain = { "Multiply" },
       omix = { "Sum" },
      }
@@ -93,12 +98,6 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       end
     end
 
-    -- create the fShift control.  This control shifts the fundamentals of the output BPFs away from the input BPFs to
-    -- change the timbre/character of the output sound
-    local fShiftf0 = self:createObject("GainBias","fShiftf0")
-    local fShiftf0Range = self:createObject("MinMax","fShiftf0Range")
-    connect(fShiftf0,"Out",fShiftf0Range,"In")
-
     -- connect modulator (unit input) to fixed HPF
     connect(pUnit,"In1",inputHPF,"Left In")
 
@@ -108,19 +107,13 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
       -- Frequency controls view, and adjust the center frequencies of the bandpass filters.
       connect(localVars["bpf0" .. i],"Out",localVars["lpI" .. i],"Fundamental")
       connect(localVars["bpf0" .. i],"Out",localVars["hpI" .. i],"Fundamental")
+      connect(localVars["bpf0" .. i],"Out",localVars["lpO" .. i],"Fundamental")
+      connect(localVars["bpf0" .. i],"Out",localVars["hpO" .. i],"Fundamental")
 
-      -- connect frequency constants to the fshift summers
-      connect(localVars["bpf0" .. i],"Out",localVars["fShiftSumLP" .. i],"Left")
-      connect(localVars["bpf0" .. i],"Out",localVars["fShiftSumHP" .. i],"Left")
-
-      -- connect fshift to right side of frequency shift summer
-      connect(fShiftf0,"Out",localVars["fShiftSumLP" .. i],"Right")
-      connect(fShiftf0,"Out",localVars["fShiftSumHP" .. i],"Right")
-
-      -- connect fshift control to output filter inputs
-      connect(localVars["fShiftSumLP" .. i],"Out",localVars["lpO" .. i],"Fundamental")
-      connect(localVars["fShiftSumHP" .. i],"Out",localVars["hpO" .. i],"Fundamental")
-
+      -- connect the fshift tune to each output bpf tune control
+      connect(fshifttune,"Out",localVars["lpO" .. i],"V/Oct")
+      connect(fshifttune,"Out",localVars["hpO" .. i],"V/Oct")
+      
       -- connect frequency ranges to f0 slider
       connect(localVars["bpf0" .. i],"Out",localVars["bpf0Range" .. i],"In")
 
@@ -206,7 +199,7 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
     self:addBranch("qIn","QIn",qIn,"In")
     self:addBranch("qOut","QOut",qOut,"In")
     self:addBranch("outputLevel","OutputLevel",outputLevel,"In")
-    self:addBranch("fshift","Fshift",fShiftf0,"In")
+    self:addBranch("fshift","Fshift",fshifttune,"In")
     self:addBranch("hpModMix","HpModMix",outputModLevel,"In")
     self:addBranch("hpModf0","HpModf0",inputHPFf0,"In")
 
@@ -246,17 +239,12 @@ function Scorpio:onLoadViews(objects,controls)
     extended = ext
   }
   
-  controls.fshift = GainBias {
+  controls.fshift = PitchControl {
     button = "fshift",
     branch = self:getBranch("Fshift"),
-    description = "spectrum shift",
-    gainbias = objects.fShiftf0,
-    range = objects.fShiftf0Range,
-    biasMap = Encoder.getMap("filterFreq"),
-    biasUnits = app.unitHertz,
-    initialBias = 0,
-    gainMap = Encoder.getMap("freqGain"),
-    scaling = app.octaveScaling
+    description = "Output freq shift v/o",
+    offset = objects.tune,
+    range = objects.tuneRange
   }
 
   controls.hpModf0 = GainBias {
@@ -277,7 +265,7 @@ function Scorpio:onLoadViews(objects,controls)
     branch = self:getBranch("Input"),
     faderParam = objects.gain:getParameter("Gain")
   }
-
+  self:addToMuteGroup(controls.gain)
 
   controls.hpModMix = GainBias {
     button = "modmix",
