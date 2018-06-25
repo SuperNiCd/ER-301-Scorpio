@@ -90,10 +90,15 @@ function Scorpio:onLoadGraph(pUnit,channelCount)
      }
 
      -- create numBands # instances of each object in objectList
+     -- loop throuhgh the Key - Value pairs in the objectList array
     for k, v in pairs(objectList) do
+      -- set i to be equal to 1 and loop intil i reaches the number of bands - numBands - in this case 10
       for i = 1, numBands do
+         -- create the object name by concatenating the key value and i e.g. lpI .. 1, lpI .. 2
         local dynamicVar = k .. i
+        -- create the dsp unit name, because objectList is a multidimentinal array access the first element
         local dynamicDSPUnit = v[1]
+        -- create a table to store the new objects and create the object using the values created
         localVars[dynamicVar] = self:createObject(dynamicDSPUnit,dynamicVar)
       end
     end
