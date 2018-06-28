@@ -247,7 +247,7 @@ function Scorpio:onLoadViews(objects,controls)
   controls.fshift = PitchControl {
     button = "fshift",
     branch = self:getBranch("Fshift"),
-    description = "Output freq shift v/o",
+    description = "Out freq shift v/o",
     offset = objects.tune,
     range = objects.tuneRange
   }
