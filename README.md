@@ -1,2 +1,5 @@
-# Joe-s-Bespoke-ER-301-Units
-Joe's custom units for the ER-301 Sound Computer
+# ER-301 Scorpio
+Scorpio is a vocoder unit for the ER-301 sound computer.  For documentation please see
+
+http://wiki.orthogonaldevices.com/index.php/Scorpio
+
